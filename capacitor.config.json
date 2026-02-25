@@ -1,0 +1,14 @@
+{
+  "appId": "com.todolist.pwa",
+  "appName": "TodoList",
+  "webDir": "apps/web",
+  "server": {
+    "url": "https://111.230.56.116",
+    "androidScheme": "https",
+    "allowNavigation": ["111.230.56.116", "*"],
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true
+  }
+}

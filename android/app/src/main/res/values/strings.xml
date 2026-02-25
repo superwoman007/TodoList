@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TodoListPWA</string>
+    <string name="title_activity_main">TodoListPWA</string>
+    <string name="package_name">com.todolist.pwa</string>
+    <string name="custom_url_scheme">com.todolist.pwa</string>
+</resources>

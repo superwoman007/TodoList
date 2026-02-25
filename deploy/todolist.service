@@ -1,0 +1,19 @@
+[Unit]
+Description=TodoList FastAPI Service
+After=network.target
+
+[Service]
+Type=simple
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/var/www/todolist/apps/api
+Environment="PATH=/var/www/todolist/venv/bin"
+Environment="PYTHONPATH=/var/www/todolist/apps/api"
+Environment="DATABASE_URL=sqlite:///./todolist.db"
+Environment="JWT_SECRET=todolist-production-secret-key-2024"
+ExecStart=/var/www/todolist/venv/bin/uvicorn app.main:app --host 127.0.0.1 --port 8000
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

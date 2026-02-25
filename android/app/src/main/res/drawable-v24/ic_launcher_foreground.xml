@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- 白色圆角矩形卡片（清单底板） -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M34,30 L74,30 Q78,30 78,34 L78,78 Q78,82 74,82 L34,82 Q30,82 30,78 L30,34 Q30,30 34,30 Z" />
+    <!-- 清单线条 1（已完成 - 带勾号） -->
+    <path
+        android:fillColor="#4F46E5"
+        android:pathData="M38,44 L42,44 L42,48 L38,48 Z" />
+    <path
+        android:strokeColor="#4F46E5"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M38.5,46 L40,47.5 L43,44.5" />
+    <path
+        android:fillColor="#94A3B8"
+        android:pathData="M48,44 L70,44 L70,48 L48,48 Z" />
+    <!-- 清单线条 2（已完成 - 带勾号） -->
+    <path
+        android:fillColor="#4F46E5"
+        android:pathData="M38,54 L42,54 L42,58 L38,58 Z" />
+    <path
+        android:strokeColor="#4F46E5"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M38.5,56 L40,57.5 L43,54.5" />
+    <path
+        android:fillColor="#C7D2FE"
+        android:pathData="M48,54 L65,54 L65,58 L48,58 Z" />
+    <!-- 清单线条 3（未完成 - 空框） -->
+    <path
+        android:strokeColor="#CBD5E1"
+        android:strokeWidth="1.5"
+        android:fillColor="#00000000"
+        android:pathData="M38,64 L42,64 L42,68 L38,68 Z" />
+    <path
+        android:fillColor="#E2E8F0"
+        android:pathData="M48,64 L68,64 L68,68 L48,68 Z" />
+    <!-- 右下角的大勾号（品牌标识） -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M58,68 L66,76 L82,56" />
+    <!-- 勾号阴影 -->
+    <path
+        android:strokeColor="#20000000"
+        android:strokeWidth="5"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="#00000000"
+        android:pathData="M58,69.5 L66,77.5 L82,57.5" />
+</vector>

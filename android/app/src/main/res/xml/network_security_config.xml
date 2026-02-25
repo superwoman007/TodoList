@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Android 网络安全配置
+  信任自签名 CA 根证书，允许 WebView 加载自签名 HTTPS
+  CA 证书文件放在 res/raw/ca.pem
+-->
+<network-security-config>
+    <!-- 生产环境：信任系统 CA + 自签名 CA -->
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/ca" />
+        </trust-anchors>
+    </base-config>
+
+    <!-- 针对服务器 IP 的特定配置 -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="false">111.230.56.116</domain>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="@raw/ca" />
+        </trust-anchors>
+    </domain-config>
+
+    <!-- debug 模式额外信任用户安装的证书 -->
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="user" />
+            <certificates src="@raw/ca" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>

@@ -1,0 +1,803 @@
+<!doctype html>
+<html lang="zh-CN" class="h-full">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#4f46e5" />
+    <title>TodoList</title>
+    <link rel="manifest" href="./manifest.json" />
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>tailwind.config = { darkMode: "class" };</script>
+    <style>
+      @media (prefers-reduced-motion: reduce) {
+        * { animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; transition-duration: 0.001ms !important; scroll-behavior: auto !important; }
+      }
+      @keyframes pulse-slow { 0%,100% { opacity: 1; } 50% { opacity: 0.6; } }
+      .animate-pulse-slow { animation: pulse-slow 2s ease-in-out infinite; }
+      .scrollbar-hide::-webkit-scrollbar { display: none; }
+      .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+      .safe-area-top { padding-top: env(safe-area-inset-top, 0); }
+      .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom, 0); }
+      /* Priority left border */
+      .priority-high { border-left: 3px solid #ef4444; }
+      .priority-normal { border-left: 3px solid #6366f1; }
+      .priority-low { border-left: 3px solid #10b981; }
+      /* Line clamp */
+      .line-clamp-2 { display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+      /* Card hover lift */
+      .card-hover { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+      .card-hover:hover { transform: translateY(-2px); box-shadow: 0 8px 25px -5px rgba(0,0,0,0.1), 0 4px 10px -6px rgba(0,0,0,0.1); }
+      .dark .card-hover:hover { box-shadow: 0 8px 25px -5px rgba(0,0,0,0.3), 0 4px 10px -6px rgba(0,0,0,0.2); }
+      /* Mobile: disable hover lift, add active press feedback */
+      @media (max-width: 767px) {
+        .card-hover:hover { transform: none; box-shadow: none; }
+        .card-hover:active { transform: scale(0.98); transition-duration: 0.1s; }
+      }
+      /* Mobile tab indicator */
+      .tab-indicator { transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+      /* Bottom sheet */
+      @media (max-width: 767px) {
+        .detail-sheet { border-radius: 1rem 1rem 0 0; max-height: 92vh; }
+        .modal-sheet { border-radius: 1rem 1rem 0 0; max-height: 90vh; position: fixed; bottom: 0; left: 0; right: 0; margin: 0; }
+      }
+      /* Swipe card container */
+      .swipe-container { position: relative; overflow: hidden; border-radius: 0.75rem; }
+      .swipe-actions { position: absolute; top: 0; bottom: 0; display: flex; align-items: center; justify-content: center; width: 80px; transition: opacity 0.2s; }
+      .swipe-action-left { left: 0; background: linear-gradient(90deg, #10b981, #059669); }
+      .swipe-action-right { right: 0; background: linear-gradient(270deg, #ef4444, #dc2626); }
+      .swipe-content { position: relative; z-index: 1; transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); background: inherit; }
+      .swipe-content.swiping { transition: none; }
+      /* Pull to refresh */
+      .pull-indicator { transition: transform 0.3s, opacity 0.3s; }
+      @keyframes spin-refresh { to { transform: rotate(360deg); } }
+      .refreshing .pull-icon { animation: spin-refresh 0.8s linear infinite; }
+      /* Offline banner */
+      .offline-banner { transition: transform 0.3s, opacity 0.3s; }
+      /* Skeleton shimmer */
+      @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+      .skeleton { background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%); background-size: 200% 100%; animation: shimmer 1.5s infinite; border-radius: 0.5rem; }
+      .dark .skeleton { background: linear-gradient(90deg, #334155 25%, #475569 50%, #334155 75%); background-size: 200% 100%; }
+      /* Custom select styling */
+      .custom-select {
+        appearance: none;
+        -webkit-appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 0.75rem center;
+        background-size: 1rem;
+        padding-right: 2.5rem;
+        cursor: pointer;
+        transition: border-color 0.2s, box-shadow 0.2s;
+      }
+      .custom-select:hover { border-color: #6366f1; }
+      .custom-select:focus { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2); }
+      .custom-select option { padding: 8px 12px; }
+      /* datetime-local styling */
+      input[type="datetime-local"].custom-input { cursor: pointer; }
+      input[type="datetime-local"].custom-input::-webkit-calendar-picker-indicator {
+        filter: invert(0.5);
+        cursor: pointer;
+        padding: 4px;
+        border-radius: 4px;
+      }
+      input[type="datetime-local"].custom-input::-webkit-calendar-picker-indicator:hover {
+        filter: invert(0.3);
+        background-color: rgba(99, 102, 241, 0.1);
+      }
+      .dark input[type="datetime-local"].custom-input::-webkit-calendar-picker-indicator {
+        filter: invert(0.7);
+      }
+      .dark input[type="datetime-local"].custom-input::-webkit-calendar-picker-indicator:hover {
+        filter: invert(0.9);
+        background-color: rgba(99, 102, 241, 0.2);
+      }
+      /* Mobile touch: prevent text selection on interactive elements */
+      @media (max-width: 767px) {
+        .swipe-container, .tab-btn, #mobile-navbar button { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+        body { overscroll-behavior-y: contain; }
+      }
+    </style>
+  </head>
+  <body class="h-full overflow-x-hidden overscroll-x-none bg-gradient-to-br from-slate-50 via-indigo-50 to-fuchsia-50 dark:from-slate-900 dark:via-slate-950 dark:to-indigo-950 scrollbar-hide">
+
+    <!-- ========== 启动动画 ========== -->
+    <div id="splash-screen" class="fixed inset-0 z-[100] flex flex-col items-center justify-center overflow-hidden" style="background: linear-gradient(135deg, #4F46E5 0%, #7C3AED 50%, #C026D3 100%);">
+      <!-- 动态粒子背景 -->
+      <canvas id="splash-particles" class="absolute inset-0 w-full h-full" style="opacity:0.4"></canvas>
+      <!-- 光晕 -->
+      <div class="absolute w-[500px] h-[500px] rounded-full" style="background: radial-gradient(circle, rgba(255,255,255,0.15) 0%, transparent 70%); top: -100px; right: -100px;"></div>
+      <div class="absolute w-[400px] h-[400px] rounded-full" style="background: radial-gradient(circle, rgba(255,255,255,0.1) 0%, transparent 70%); bottom: -80px; left: -80px;"></div>
+      <!-- Logo 图标 -->
+      <div id="splash-icon" class="relative z-10 mb-6" style="opacity:0; transform: scale(0.5) translateY(20px); transition: all 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);">
+        <div class="w-24 h-24 rounded-3xl bg-white/20 backdrop-blur-sm flex items-center justify-center shadow-2xl" style="box-shadow: 0 0 60px rgba(255,255,255,0.2);">
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-14 h-14" viewBox="0 0 24 24" fill="none">
+            <!-- 清单图标 -->
+            <rect x="3" y="3" width="18" height="18" rx="3" fill="white" opacity="0.9"/>
+            <rect x="6" y="7" width="3" height="3" rx="0.5" fill="#4F46E5"/>
+            <path d="M6.5 8.5L7.5 9.5L9.5 7.5" stroke="white" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="11" y="7.5" width="7" height="2" rx="1" fill="#94A3B8"/>
+            <rect x="6" y="11.5" width="3" height="3" rx="0.5" fill="#4F46E5"/>
+            <path d="M6.5 13L7.5 14L9.5 12" stroke="white" stroke-width="0.8" stroke-linecap="round" stroke-linejoin="round"/>
+            <rect x="11" y="12" width="5" height="2" rx="1" fill="#C7D2FE"/>
+            <rect x="6" y="16" width="3" height="3" rx="0.5" stroke="#CBD5E1" stroke-width="0.6" fill="none"/>
+            <rect x="11" y="16.5" width="6" height="2" rx="1" fill="#E2E8F0"/>
+          </svg>
+        </div>
+      </div>
+      <!-- 应用名称 -->
+      <div id="splash-title" class="relative z-10 text-center" style="opacity:0; transform: translateY(20px); transition: all 0.6s cubic-bezier(0.25, 0.46, 0.45, 0.94) 0.3s;">
+        <h1 class="text-3xl font-bold text-white tracking-wide mb-2">TodoList</h1>
+        <p class="text-white/60 text-sm">高效管理，轻松完成</p>
+      </div>
+      <!-- 加载指示器 -->
+      <div id="splash-loader" class="relative z-10 mt-10" style="opacity:0; transition: opacity 0.4s ease 0.6s;">
+        <div class="flex gap-1.5">
+          <div class="w-2 h-2 rounded-full bg-white/60" style="animation: splash-bounce 1.4s ease-in-out infinite;"></div>
+          <div class="w-2 h-2 rounded-full bg-white/60" style="animation: splash-bounce 1.4s ease-in-out 0.2s infinite;"></div>
+          <div class="w-2 h-2 rounded-full bg-white/60" style="animation: splash-bounce 1.4s ease-in-out 0.4s infinite;"></div>
+        </div>
+      </div>
+    </div>
+    <style>
+      @keyframes splash-bounce {
+        0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
+        40% { transform: scale(1.2); opacity: 1; }
+      }
+      #splash-screen.splash-exit {
+        animation: splash-fade-out 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+      }
+      @keyframes splash-fade-out {
+        0% { opacity: 1; transform: scale(1); }
+        100% { opacity: 0; transform: scale(1.1); pointer-events: none; }
+      }
+    </style>
+
+    <!-- ========== 登录/注册视图 ========== -->
+    <div id="auth-view" class="hidden min-h-screen flex items-center justify-center p-4 safe-area-top safe-area-bottom">
+      <div class="w-full max-w-sm">
+        <div class="text-center mb-6 md:mb-8">
+          <div class="text-2xl md:text-3xl font-semibold bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-transparent mb-2">TodoList</div>
+          <p class="text-slate-500 dark:text-slate-400 text-sm" id="auth-subtitle">登录以同步你的任务</p>
+        </div>
+        <div class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md p-5 md:p-6 shadow-sm">
+          <div id="auth-error" class="hidden mb-4 p-3 rounded-lg bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300 text-sm"></div>
+          <form id="auth-form" class="space-y-4">
+            <div id="auth-name-field" class="space-y-1 hidden">
+              <label for="auth-name" class="text-sm text-slate-700 dark:text-slate-300">昵称</label>
+              <input id="auth-name" type="text" placeholder="你的昵称（可选）" class="w-full px-3 py-2.5 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[48px] text-base" />
+            </div>
+            <div class="space-y-1">
+              <label for="auth-email" class="text-sm text-slate-700 dark:text-slate-300">邮箱</label>
+              <input id="auth-email" type="email" required placeholder="your@email.com" class="w-full px-3 py-2.5 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[48px] text-base" />
+            </div>
+            <div class="space-y-1">
+              <label for="auth-password" class="text-sm text-slate-700 dark:text-slate-300">密码</label>
+              <input id="auth-password" type="password" required minlength="6" placeholder="至少 6 位" class="w-full px-3 py-2.5 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[48px] text-base" />
+            </div>
+            <button type="submit" id="auth-submit" class="w-full py-3 rounded-md bg-indigo-600 text-white font-medium shadow-sm hover:bg-indigo-700 active:scale-95 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[48px] text-base">登录</button>
+          </form>
+          <div class="mt-4 text-center text-sm text-slate-500 dark:text-slate-400">
+            <span id="auth-switch-hint">还没有账号？</span>
+            <button id="auth-switch" class="text-indigo-600 dark:text-indigo-400 font-medium hover:underline focus:outline-none">注册</button>
+          </div>
+        </div>
+        <div class="mt-4 text-center">
+          <button id="auth-skip" class="text-sm text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 focus:outline-none">跳过登录，离线使用 →</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== 主应用视图 ========== -->
+    <div id="app-view" class="hidden max-w-7xl mx-auto px-4 py-4 pb-28 md:px-6 md:py-6 safe-area-top">
+
+      <!-- 离线状态横幅 -->
+      <div id="offline-banner" class="hidden offline-banner mb-2 px-4 py-2 rounded-lg text-sm font-medium text-center transition-all">
+        <span id="offline-banner-text">当前处于离线模式，数据仅保存在本地</span>
+      </div>
+
+      <!-- 下拉刷新指示器 -->
+      <div id="pull-refresh" class="pull-indicator flex items-center justify-center py-0 overflow-hidden opacity-0 -translate-y-4" style="height:0; transition: height 0.3s, opacity 0.3s, transform 0.3s;">
+        <svg class="pull-icon h-5 w-5 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" /></svg>
+        <span class="ml-2 text-sm text-slate-500 dark:text-slate-400" id="pull-text">下拉刷新</span>
+      </div>
+
+      <!-- 头部 -->
+      <header class="flex items-center gap-3 mb-4 md:mb-6 pb-3 border-b border-gray-200/60 dark:border-slate-700/60">
+        <!-- Logo -->
+        <div class="flex items-center gap-2 shrink-0">
+          <div class="text-xl md:text-2xl font-semibold bg-gradient-to-r from-indigo-600 to-fuchsia-600 bg-clip-text text-transparent">TodoList</div>
+        </div>
+        <!-- 搜索框 -->
+        <div class="flex-1 relative">
+          <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 pointer-events-none" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          <input id="search" class="w-full pl-9 pr-3 rounded-lg border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[40px] md:min-h-[44px] text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400" placeholder="搜索任务..." />
+        </div>
+        <!-- 桌面端操作按钮 -->
+        <div class="hidden md:flex items-center gap-2">
+          <button id="add-btn" class="rounded-lg bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[44px] px-4 whitespace-nowrap text-sm font-medium flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+            添加
+          </button>
+          <button id="tpl-btn" class="rounded-lg border border-gray-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 active:scale-95 transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[44px] px-3 whitespace-nowrap text-sm flex items-center gap-1.5">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z" /></svg>
+            模版
+          </button>
+          <div class="w-px h-6 bg-gray-200 dark:bg-slate-700"></div>
+          <button id="settings-btn-desktop" aria-label="设置" class="rounded-lg border border-gray-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          </button>
+          <button id="theme-toggle-desktop" aria-label="切换主题" class="rounded-lg border border-gray-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
+            <svg id="theme-icon-desktop" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+          </button>
+          <button id="logout-btn-desktop" class="hidden rounded-lg border border-gray-200 dark:border-slate-700 text-slate-500 dark:text-slate-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+          </button>
+        </div>
+        <!-- 移动端：仅显示添加按钮 -->
+        <button id="add-btn-mobile" class="md:hidden rounded-lg bg-indigo-600 text-white shadow-sm hover:bg-indigo-700 active:scale-95 transition-all min-h-[44px] min-w-[44px] flex items-center justify-center" aria-label="添加任务">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" /></svg>
+        </button>
+      </header>
+
+      <!-- 仪表盘摘要区 -->
+      <div id="dashboard" class="mb-4 md:mb-6 rounded-xl border border-gray-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md p-3 md:p-4 shadow-sm">
+        <div class="flex items-center gap-3 md:gap-6">
+          <!-- 环形完成率 -->
+          <div class="flex items-center gap-2 md:gap-3 shrink-0">
+            <svg id="ring-chart" width="48" height="48" viewBox="0 0 56 56" class="shrink-0 md:w-14 md:h-14">
+              <circle cx="28" cy="28" r="22" fill="none" stroke-width="6" class="stroke-gray-200 dark:stroke-slate-700" />
+              <circle id="ring-progress" cx="28" cy="28" r="22" fill="none" stroke-width="6" stroke-linecap="round"
+                      class="stroke-indigo-500 transition-all duration-500" style="stroke-dasharray: 138.23; stroke-dashoffset: 138.23;" transform="rotate(-90 28 28)" />
+              <text id="ring-pct" x="28" y="32" text-anchor="middle" class="text-xs font-bold fill-slate-700 dark:fill-slate-200">0%</text>
+            </svg>
+            <div class="hidden md:block">
+              <div class="text-sm font-medium text-slate-500 dark:text-slate-400">完成率</div>
+              <div id="dash-done-total" class="text-lg font-bold text-slate-800 dark:text-slate-100">0/0</div>
+            </div>
+          </div>
+          <!-- 统计卡片 -->
+          <div class="grid grid-cols-3 gap-2 md:flex md:gap-3 flex-1 min-w-0">
+            <div class="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg bg-indigo-50 dark:bg-indigo-900/30">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:h-5 md:w-5 text-indigo-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+              <div class="min-w-0"><div class="text-[10px] md:text-xs text-indigo-600 dark:text-indigo-400">待办</div><div id="dash-todo" class="text-base md:text-lg font-bold text-indigo-700 dark:text-indigo-300">0</div></div>
+            </div>
+            <div class="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg bg-amber-50 dark:bg-amber-900/30">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:h-5 md:w-5 text-amber-600 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              <div class="min-w-0"><div class="text-[10px] md:text-xs text-amber-600 dark:text-amber-400">进行中</div><div id="dash-doing" class="text-base md:text-lg font-bold text-amber-700 dark:text-amber-300">0</div></div>
+            </div>
+            <div id="dash-overdue-card" class="flex items-center gap-1.5 md:gap-2 px-2 md:px-3 py-1.5 md:py-2 rounded-lg bg-red-50 dark:bg-red-900/30 hidden">
+              <span class="relative flex h-2.5 w-2.5 md:h-3 md:w-3 shrink-0">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2.5 w-2.5 md:h-3 md:w-3 bg-red-500"></span>
+              </span>
+              <div class="min-w-0"><div class="text-[10px] md:text-xs text-red-600 dark:text-red-400">逾期</div><div id="dash-overdue" class="text-base md:text-lg font-bold text-red-700 dark:text-red-300">0</div></div>
+            </div>
+          </div>
+        </div>
+        <!-- 进度条 -->
+        <div class="mt-3">
+          <div class="h-1.5 md:h-2 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
+            <div id="progress-bar" class="h-full rounded-full bg-red-500 transition-all duration-500" style="width: 0%"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 今日聚焦区 -->
+      <div id="today-focus" class="mb-3 md:mb-4 hidden">
+        <div class="rounded-xl border border-amber-300 dark:border-amber-700 bg-amber-50/80 dark:bg-amber-900/20 backdrop-blur-md p-3 md:p-4 shadow-sm">
+          <h2 class="flex items-center gap-2 font-medium text-sm md:text-base text-amber-800 dark:text-amber-200 mb-2 md:mb-3">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 md:h-5 md:w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 18.657A8 8 0 016.343 7.343S7 9 9 10c0-2 .5-5 2.986-7C14 5 16.09 5.777 17.656 7.343A7.975 7.975 0 0120 13a7.975 7.975 0 01-2.343 5.657z" /></svg>
+            <span>今日聚焦</span>
+            <span id="today-count" class="text-xs px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-800 text-amber-800 dark:text-amber-200">0</span>
+          </h2>
+          <div id="today-list" class="flex flex-col gap-2 md:flex-row md:flex-wrap"></div>
+        </div>
+      </div>
+
+      <!-- 移动端 Tab -->
+      <div id="mobile-tabs" class="md:hidden sticky top-0 z-30 pb-3 w-full" role="tablist" aria-label="状态切换">
+        <div class="relative bg-slate-100/90 dark:bg-slate-800/90 backdrop-blur-md rounded-xl p-1 flex">
+          <!-- 滑动指示器 -->
+          <div id="tab-indicator" class="tab-indicator absolute top-1 bottom-1 rounded-lg bg-white dark:bg-slate-700 shadow-sm" style="width: calc(33.333% - 2px); left: 4px;"></div>
+          <button data-tab="todo" role="tab" aria-selected="true" tabindex="0" class="tab-btn relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium text-slate-900 dark:text-slate-100 transition-colors">
+            待办 <span id="tab-count-todo" class="text-[10px] px-1.5 py-0.5 rounded-full bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 font-bold">0</span>
+          </button>
+          <button data-tab="doing" role="tab" aria-selected="false" tabindex="-1" class="tab-btn relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 transition-colors">
+            进行中 <span id="tab-count-doing" class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 font-bold">0</span>
+          </button>
+          <button data-tab="done" role="tab" aria-selected="false" tabindex="-1" class="tab-btn relative z-10 flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-sm font-medium text-slate-500 dark:text-slate-400 transition-colors">
+            已完成 <span id="tab-count-done" class="text-[10px] px-1.5 py-0.5 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-400 font-bold">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 看板 -->
+      <main class="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-5">
+        <section data-col="todo" class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md shadow-sm flex flex-col">
+          <h2 class="font-medium px-4 pt-3.5 pb-2.5 text-slate-700 dark:text-slate-200 flex items-center justify-between border-b border-gray-100 dark:border-slate-700/50">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+              <span class="text-sm">待办</span>
+            </div>
+            <span id="count-todo" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-700 dark:bg-indigo-900/50 dark:text-indigo-300 transition-all min-w-[28px] text-center">0</span>
+          </h2>
+          <div class="space-y-2.5 px-3 py-3 min-h-[6rem] flex-1" id="col-todo" data-status="todo"></div>
+          <div id="empty-todo" class="hidden text-center py-8 text-slate-400 dark:text-slate-500 px-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+            <p class="text-sm">没有待办任务</p><p class="text-xs mt-1 text-slate-300 dark:text-slate-600">点击添加开始吧</p>
+          </div>
+        </section>
+        <section data-col="doing" class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md shadow-sm flex flex-col">
+          <h2 class="font-medium px-4 pt-3.5 pb-2.5 text-slate-700 dark:text-slate-200 flex items-center justify-between border-b border-gray-100 dark:border-slate-700/50">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span>
+              <span class="text-sm">进行中</span>
+            </div>
+            <span id="count-doing" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300 transition-all min-w-[28px] text-center">0</span>
+          </h2>
+          <div class="space-y-2.5 px-3 py-3 min-h-[6rem] flex-1" id="col-doing" data-status="doing"></div>
+          <div id="empty-doing" class="hidden text-center py-8 text-slate-400 dark:text-slate-500 px-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <p class="text-sm">没有进行中的任务</p><p class="text-xs mt-1 text-slate-300 dark:text-slate-600">是时候开始了</p>
+          </div>
+        </section>
+        <section data-col="done" class="rounded-xl border border-gray-200 dark:border-slate-700 bg-white/70 dark:bg-slate-800/70 backdrop-blur-md shadow-sm flex flex-col">
+          <h2 class="font-medium px-4 pt-3.5 pb-2.5 text-slate-700 dark:text-slate-200 flex items-center justify-between border-b border-gray-100 dark:border-slate-700/50">
+            <div class="flex items-center gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <span class="text-sm">已完成</span>
+            </div>
+            <span id="count-done" class="text-xs font-bold px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300 transition-all min-w-[28px] text-center">0</span>
+          </h2>
+          <div class="space-y-2.5 px-3 py-3 min-h-[6rem] flex-1" id="col-done" data-status="done"></div>
+          <div id="empty-done" class="hidden text-center py-8 text-slate-400 dark:text-slate-500 px-4">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-8 w-8 mx-auto mb-2 opacity-30" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M5 13l4 4L19 7" /></svg>
+            <p class="text-sm">还没有完成任何任务</p><p class="text-xs mt-1 text-slate-300 dark:text-slate-600">加油，你可以的</p>
+          </div>
+        </section>
+      </main>
+
+      <!-- FAB (隐藏，移动端用 header 的添加按钮) -->
+      <button id="fab-add" class="hidden" aria-label="添加任务">+</button>
+
+    </div><!-- /app-view -->
+
+    <!-- ========== 以下模态框/面板移至 body 直接子级，避免父容器约束 ========== -->
+
+    <!-- 添加/编辑模态框 (移动端 Bottom Sheet / 桌面端居中) -->
+      <div id="add-overlay" class="fixed inset-0 bg-black/40 hidden items-end md:items-center justify-center md:p-4 z-50">
+        <div class="w-full max-w-md rounded-t-2xl md:rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-5 shadow-lg modal-sheet safe-area-bottom">
+          <!-- 移动端拖拽指示条 -->
+          <div class="w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600 mx-auto mb-3 md:hidden"></div>
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-3">添加任务</h3>
+          <form id="add-form" class="space-y-3">
+            <div class="space-y-1">
+              <label for="add-title" class="text-sm text-slate-700 dark:text-slate-300">标题</label>
+              <input id="add-title" name="title" required class="w-full px-3 py-2.5 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[44px] text-base" />
+            </div>
+            <div class="space-y-1">
+              <label for="add-desc" class="text-sm text-slate-700 dark:text-slate-300">描述</label>
+              <textarea id="add-desc" name="desc" rows="3" class="w-full px-3 py-2.5 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-base"></textarea>
+            </div>
+            <div class="space-y-1">
+              <label for="add-priority" class="text-sm text-slate-700 dark:text-slate-300">优先级</label>
+              <select id="add-priority" name="priority" class="custom-select w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 outline-none text-sm min-h-[44px] font-medium shadow-sm">
+                <option value="high">🔴 高</option>
+                <option value="normal" selected>🔵 普通</option>
+                <option value="low">🟢 低</option>
+              </select>
+            </div>
+            <div class="space-y-1">
+              <label for="add-due" class="text-sm text-slate-700 dark:text-slate-300">截止日期</label>
+              <input id="add-due" name="due_date" type="datetime-local" class="custom-input w-full px-3 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm min-h-[44px] shadow-sm transition-colors" />
+            </div>
+            <div class="flex gap-2 pt-1">
+              <button type="button" id="add-cancel" class="flex-1 py-3 rounded-lg border border-gray-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[48px]">取消</button>
+              <button type="submit" class="flex-1 py-3 rounded-lg bg-indigo-600 text-white font-medium shadow-sm hover:bg-indigo-700 active:scale-95 transition-colors motion-reduce:transition-none focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 min-h-[48px]">添加</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- 任务操作模态框 -->
+      <div id="status-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50 transition-opacity duration-200" role="dialog" aria-modal="true" aria-labelledby="status-modal-title">
+        <div class="w-full max-w-sm rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-xl">
+          <h3 id="status-modal-title" class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4 text-center">任务操作</h3>
+          <div class="grid grid-cols-1 gap-3 mb-4">
+            <button data-status="todo" class="group flex items-center p-4 rounded-lg border border-gray-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <div class="w-10 h-10 rounded-full bg-indigo-100 text-indigo-600 flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" /></svg>
+              </div>
+              <div class="text-left"><div class="font-medium text-slate-900 dark:text-slate-100">待办</div><div class="text-sm text-slate-500 dark:text-slate-400">准备开始的任务</div></div>
+            </button>
+            <button data-status="doing" class="group flex items-center p-4 rounded-lg border border-gray-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <div class="w-10 h-10 rounded-full bg-amber-100 text-amber-600 flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              </div>
+              <div class="text-left"><div class="font-medium text-slate-900 dark:text-slate-100">进行中</div><div class="text-sm text-slate-500 dark:text-slate-400">正在进行的任务</div></div>
+            </button>
+            <button data-status="done" class="group flex items-center p-4 rounded-lg border border-gray-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <div class="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mr-4 group-hover:scale-110 transition-transform">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              </div>
+              <div class="text-left"><div class="font-medium text-slate-900 dark:text-slate-100">已完成</div><div class="text-sm text-slate-500 dark:text-slate-400">已经完成的任务</div></div>
+            </button>
+          </div>
+          <div class="grid grid-cols-2 gap-3 mb-4">
+            <button id="status-edit" class="flex items-center justify-center p-3 rounded-lg border border-gray-200 dark:border-slate-700 hover:border-indigo-500 dark:hover:border-indigo-500 hover:bg-indigo-50 dark:hover:bg-slate-700 transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 0L15.828 21H18a2 2 0 002-2v-2.172M15.828 17l-2.828-2.828M5 12a2 2 0 002 2h2a2 2 0 002-2V9a2 2 0 00-2-2H5a2 2 0 00-2 2v2a2 2 0 002 2z" /></svg>
+              <span class="font-medium text-slate-700 dark:text-slate-300">编辑</span>
+            </button>
+            <button id="status-delete" class="flex items-center justify-center p-3 rounded-lg border border-red-200 dark:border-red-900 hover:border-red-500 dark:hover:border-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition-all focus:outline-none focus:ring-2 focus:ring-red-500">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+              <span class="font-medium text-red-600 dark:text-red-400">删除</span>
+            </button>
+          </div>
+          <button id="status-cancel" class="w-full py-3 rounded-lg border border-gray-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500">取消</button>
+        </div>
+      </div>
+
+      <!-- 删除确认模态框 -->
+      <div id="delete-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50 transition-opacity duration-200" role="dialog" aria-modal="true" aria-labelledby="delete-modal-title">
+        <div class="w-full max-w-sm rounded-xl border border-red-200 dark:border-red-900 bg-white dark:bg-slate-800 p-6 shadow-xl">
+          <div class="flex items-center justify-center mb-4">
+            <div class="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 flex items-center justify-center">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 2.502-3.715V5.484c0-2.048-1.962-3.715-2.502-3.715H6.938c-.54 0-2.502 1.667-2.502 3.715v8.484c0 2.048 1.962 3.715 2.502 3.715z" /></svg>
+            </div>
+          </div>
+          <h3 id="delete-modal-title" class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2 text-center">确认删除</h3>
+          <p class="text-sm text-slate-600 dark:text-slate-400 mb-6 text-center">此操作无法撤销，确定要删除此任务吗？</p>
+          <div class="flex gap-3">
+            <button id="delete-cancel" class="flex-1 py-3 rounded-lg border border-gray-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors focus:outline-none focus:ring-2 focus:ring-slate-500">取消</button>
+            <button id="delete-confirm" class="flex-1 py-3 rounded-lg bg-red-600 text-white font-medium hover:bg-red-700 transition-colors focus:outline-none focus:ring-2 focus:ring-red-500">删除</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 场景模版列表模态框 -->
+      <div id="tpl-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
+        <div class="w-full max-w-lg max-h-[80vh] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl flex flex-col">
+          <div class="flex items-center justify-between p-4 border-b border-gray-200 dark:border-slate-700">
+            <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100">场景模版</h3>
+            <button id="tpl-create-btn" class="px-3 py-1.5 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 transition-colors">新建模版</button>
+          </div>
+          <div id="tpl-list" class="flex-1 overflow-y-auto p-4 space-y-3">
+            <div id="tpl-empty" class="text-center py-8 text-slate-400 dark:text-slate-500">
+              <p class="text-sm">还没有场景模版</p>
+              <p class="text-xs mt-1">点击「新建模版」创建你的第一个场景</p>
+            </div>
+          </div>
+          <div class="p-4 border-t border-gray-200 dark:border-slate-700">
+            <button id="tpl-close" class="w-full py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">关闭</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 场景模版编辑模态框 -->
+      <div id="tpl-edit-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
+        <div class="w-full max-w-lg max-h-[85vh] rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-xl flex flex-col">
+          <div class="p-4 border-b border-gray-200 dark:border-slate-700">
+            <h3 id="tpl-edit-title" class="text-lg font-semibold text-slate-900 dark:text-slate-100">新建场景模版</h3>
+          </div>
+          <form id="tpl-edit-form" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <div class="flex gap-3">
+              <div class="space-y-1 flex-1">
+                <label for="tpl-name" class="text-sm text-slate-700 dark:text-slate-300">模版名称</label>
+                <input id="tpl-name" required class="w-full px-3 py-2 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" placeholder="如：出差清单" />
+              </div>
+              <div class="space-y-1 w-20">
+                <label for="tpl-icon" class="text-sm text-slate-700 dark:text-slate-300">图标</label>
+                <input id="tpl-icon" class="w-full px-3 py-2 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-center text-lg" value="📋" />
+              </div>
+            </div>
+            <div class="space-y-1">
+              <label for="tpl-desc" class="text-sm text-slate-700 dark:text-slate-300">描述</label>
+              <input id="tpl-desc" class="w-full px-3 py-2 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500" placeholder="可选描述" />
+            </div>
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="text-sm font-medium text-slate-700 dark:text-slate-300">检查项</label>
+                <button type="button" id="tpl-add-item" class="text-xs px-2 py-1 rounded bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-200 dark:hover:bg-indigo-900/70 transition-colors">+ 添加</button>
+              </div>
+              <div id="tpl-items" class="space-y-2"></div>
+            </div>
+          </form>
+          <div class="p-4 border-t border-gray-200 dark:border-slate-700 flex gap-2">
+            <button type="button" id="tpl-edit-cancel" class="flex-1 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">取消</button>
+            <button type="button" id="tpl-edit-save" class="flex-1 py-2.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 任务详情面板 -->
+      <div id="detail-panel" class="fixed inset-0 z-50 hidden">
+        <div class="absolute inset-0 bg-black/40 transition-opacity duration-300" id="detail-backdrop"></div>
+        <!-- 移动端: bottom sheet / 桌面端: 右侧抽屉 -->
+        <div class="absolute bottom-0 left-0 right-0 md:inset-y-0 md:left-auto md:right-0 w-full md:max-w-xl lg:max-w-2xl bg-white dark:bg-slate-800 shadow-2xl transform translate-y-full md:translate-y-0 md:translate-x-full transition-transform duration-300 ease-out flex flex-col detail-sheet overflow-hidden" id="detail-drawer">
+          <!-- 头部 -->
+          <div class="px-5 md:px-8 lg:px-10 py-4 border-b border-gray-200 dark:border-slate-700 safe-area-top">
+           <!-- 移动端拖拽指示条 -->
+           <div class="absolute top-2 left-1/2 -translate-x-1/2 w-10 h-1 rounded-full bg-slate-300 dark:bg-slate-600 md:hidden"></div>
+           <div class="flex items-center justify-between">
+             <h3 id="detail-title" class="text-lg font-semibold text-slate-900 dark:text-slate-100 truncate flex-1 mr-3"></h3>
+             <button id="detail-close" class="p-2.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 transition-colors shrink-0 min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="关闭">
+               <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+             </button>
+           </div>
+         </div>
+          <!-- 内容区 -->
+          <div class="flex-1 overflow-y-auto px-5 md:px-8 lg:px-10 py-4 space-y-4 overscroll-contain">
+            <div class="w-full space-y-4">
+            <!-- 状态 & 优先级 -->
+            <div class="flex gap-3">
+              <div class="flex-1 space-y-1">
+                <label class="text-xs text-slate-500 dark:text-slate-400">状态</label>
+                <div class="relative" id="detail-status-wrapper">
+                  <button type="button" id="detail-status-btn" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm min-h-[44px] font-medium shadow-sm hover:border-indigo-400 transition-colors cursor-pointer">
+                    <span id="detail-status-label" class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>待办</span>
+                    <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><polyline points="6 9 12 15 18 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <div id="detail-status-dropdown" class="hidden absolute z-10 mt-1 w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-lg overflow-hidden">
+                    <button type="button" data-value="todo" class="status-opt w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-100 hover:bg-indigo-50 dark:hover:bg-slate-600 transition-colors"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0"></span>待办</button>
+                    <button type="button" data-value="doing" class="status-opt w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-100 hover:bg-amber-50 dark:hover:bg-slate-600 transition-colors"><span class="w-2.5 h-2.5 rounded-full bg-amber-500 shrink-0"></span>进行中</button>
+                    <button type="button" data-value="done" class="status-opt w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-100 hover:bg-emerald-50 dark:hover:bg-slate-600 transition-colors"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>已完成</button>
+                  </div>
+                  <input type="hidden" id="detail-status" value="todo" />
+                </div>
+              </div>
+              <div class="flex-1 space-y-1">
+                <label class="text-xs text-slate-500 dark:text-slate-400">优先级</label>
+                <div class="relative" id="detail-priority-wrapper">
+                  <button type="button" id="detail-priority-btn" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm min-h-[44px] font-medium shadow-sm hover:border-indigo-400 transition-colors cursor-pointer">
+                    <span id="detail-priority-label" class="flex items-center gap-2"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>普通</span>
+                    <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><polyline points="6 9 12 15 18 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <div id="detail-priority-dropdown" class="hidden absolute z-10 mt-1 w-full rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-lg overflow-hidden">
+                    <button type="button" data-value="high" class="priority-opt w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-100 hover:bg-red-50 dark:hover:bg-slate-600 transition-colors"><span class="w-2.5 h-2.5 rounded-full bg-red-500 shrink-0"></span>高</button>
+                    <button type="button" data-value="normal" class="priority-opt w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-100 hover:bg-indigo-50 dark:hover:bg-slate-600 transition-colors"><span class="w-2.5 h-2.5 rounded-full bg-indigo-500 shrink-0"></span>普通</button>
+                    <button type="button" data-value="low" class="priority-opt w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-800 dark:text-slate-100 hover:bg-emerald-50 dark:hover:bg-slate-600 transition-colors"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500 shrink-0"></span>低</button>
+                  </div>
+                  <input type="hidden" id="detail-priority" value="normal" />
+                </div>
+              </div>
+            </div>
+            <!-- 截止日期 -->
+            <div class="space-y-1">
+              <label class="text-xs text-slate-500 dark:text-slate-400">截止日期</label>
+              <div class="relative" id="detail-due-wrapper">
+                <div id="detail-due-btn" role="button" tabindex="0" class="w-full flex items-center justify-between px-3 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 text-sm min-h-[44px] font-medium shadow-sm hover:border-indigo-400 transition-colors cursor-pointer">
+                  <span id="detail-due-label" class="flex items-center gap-2 text-slate-400 dark:text-slate-500">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                    选择日期时间
+                  </span>
+                  <div class="flex items-center gap-1">
+                    <button type="button" id="detail-due-clear" class="hidden p-1 rounded hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-400 hover:text-red-500 transition-colors" title="清除日期">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" /></svg>
+                    </button>
+                    <svg class="w-4 h-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><polyline points="6 9 12 15 18 9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </div>
+                </div>
+                <div id="detail-due-dropdown" class="hidden absolute z-20 mt-1 w-full rounded-xl border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 shadow-xl overflow-hidden">
+                  <!-- 月份导航 -->
+                  <div class="flex items-center justify-between px-3 py-2.5 border-b border-gray-100 dark:border-slate-600">
+                    <button type="button" id="cal-prev" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7" /></svg>
+                    </button>
+                    <span id="cal-month-label" class="text-sm font-semibold text-slate-800 dark:text-slate-100"></span>
+                    <button type="button" id="cal-next" class="p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 transition-colors">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7" /></svg>
+                    </button>
+                  </div>
+                  <!-- 星期头 -->
+                  <div class="grid grid-cols-7 text-center text-[11px] font-medium text-slate-400 dark:text-slate-500 px-2 pt-2">
+                    <span>日</span><span>一</span><span>二</span><span>三</span><span>四</span><span>五</span><span>六</span>
+                  </div>
+                  <!-- 日历网格 -->
+                  <div id="cal-grid" class="grid grid-cols-7 gap-0.5 px-2 py-1.5"></div>
+                  <!-- 时间选择 -->
+                  <div class="flex items-center gap-2 px-3 py-2.5 border-t border-gray-100 dark:border-slate-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-slate-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                    <select id="cal-hour" class="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-600 text-slate-800 dark:text-slate-100 text-sm outline-none focus:border-indigo-500 cursor-pointer"></select>
+                    <span class="text-slate-400 font-bold">:</span>
+                    <select id="cal-minute" class="flex-1 px-2 py-1.5 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-600 text-slate-800 dark:text-slate-100 text-sm outline-none focus:border-indigo-500 cursor-pointer"></select>
+                  </div>
+                  <!-- 快捷按钮 -->
+                  <div class="flex gap-1.5 px-3 py-2 border-t border-gray-100 dark:border-slate-600">
+                    <button type="button" data-quick="today" class="cal-quick flex-1 text-xs py-1.5 rounded-lg border border-gray-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-600 hover:border-indigo-300 transition-colors">今天</button>
+                    <button type="button" data-quick="tomorrow" class="cal-quick flex-1 text-xs py-1.5 rounded-lg border border-gray-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-600 hover:border-indigo-300 transition-colors">明天</button>
+                    <button type="button" data-quick="nextweek" class="cal-quick flex-1 text-xs py-1.5 rounded-lg border border-gray-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-600 hover:border-indigo-300 transition-colors">下周</button>
+                  </div>
+                  <!-- 确认 -->
+                  <div class="px-3 py-2 border-t border-gray-100 dark:border-slate-600">
+                    <button type="button" id="cal-confirm" class="w-full py-2 rounded-lg bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 active:scale-95 transition-all">确定</button>
+                  </div>
+                </div>
+                <input type="hidden" id="detail-due" value="" />
+              </div>
+            </div>
+            <!-- 描述 -->
+            <div class="space-y-1">
+              <label class="text-xs text-slate-500 dark:text-slate-400">描述</label>
+              <textarea id="detail-desc" rows="3" class="w-full px-3 py-2.5 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm" placeholder="添加描述..."></textarea>
+            </div>
+            <!-- 子任务 -->
+            <div class="space-y-2">
+              <div class="flex items-center justify-between">
+                <label class="text-xs font-medium text-slate-500 dark:text-slate-400 flex items-center gap-2">
+                  子任务
+                  <span id="detail-sub-progress" class="text-xs px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300">0/0</span>
+                </label>
+              </div>
+              <div class="h-1.5 rounded-full bg-gray-200 dark:bg-slate-700 overflow-hidden">
+                <div id="detail-sub-bar" class="h-full rounded-full bg-indigo-500 transition-all duration-300" style="width:0%"></div>
+              </div>
+              <div id="detail-subtasks" class="space-y-1.5"></div>
+              <div class="flex gap-2">
+                <input id="detail-sub-input" type="text" placeholder="添加子任务..." class="flex-1 px-3 py-2 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm min-h-[44px]" />
+                <button id="detail-sub-add" class="px-4 py-2 rounded-md bg-indigo-600 text-white text-sm hover:bg-indigo-700 active:scale-95 transition-colors shrink-0 min-h-[44px]">添加</button>
+              </div>
+            </div>
+            <!-- 标签 -->
+            <div class="space-y-2">
+              <label class="text-xs font-medium text-slate-500 dark:text-slate-400">标签</label>
+              <div id="detail-tags" class="flex flex-wrap gap-1.5"></div>
+              <div class="space-y-2">
+                <div class="flex flex-wrap gap-2">
+                  <input id="detail-tag-input" type="text" placeholder="新标签名称..." class="flex-1 min-w-[120px] px-3 py-2 rounded-lg border border-gray-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 text-sm min-h-[44px] shadow-sm transition-colors" />
+                  <button id="detail-tag-add" class="px-4 py-2 rounded-lg bg-indigo-600 text-white text-sm hover:bg-indigo-700 active:scale-95 transition-colors shrink-0 min-h-[44px] shadow-sm font-medium">添加</button>
+                </div>
+                <div id="detail-tag-color-swatches" class="flex flex-wrap gap-1.5 items-center">
+                  <span class="text-xs text-slate-400 dark:text-slate-500 mr-1">颜色:</span>
+                  <button type="button" data-color="#6366f1" class="color-swatch w-7 h-7 rounded-full border-2 border-transparent ring-2 ring-indigo-500 ring-offset-1 dark:ring-offset-slate-800 transition-all" style="background-color:#6366f1" title="靛蓝"></button>
+                  <button type="button" data-color="#ec4899" class="color-swatch w-7 h-7 rounded-full border-2 border-transparent hover:scale-110 transition-all" style="background-color:#ec4899" title="粉红"></button>
+                  <button type="button" data-color="#f59e0b" class="color-swatch w-7 h-7 rounded-full border-2 border-transparent hover:scale-110 transition-all" style="background-color:#f59e0b" title="琥珀"></button>
+                  <button type="button" data-color="#10b981" class="color-swatch w-7 h-7 rounded-full border-2 border-transparent hover:scale-110 transition-all" style="background-color:#10b981" title="翠绿"></button>
+                  <button type="button" data-color="#8b5cf6" class="color-swatch w-7 h-7 rounded-full border-2 border-transparent hover:scale-110 transition-all" style="background-color:#8b5cf6" title="紫色"></button>
+                  <button type="button" data-color="#ef4444" class="color-swatch w-7 h-7 rounded-full border-2 border-transparent hover:scale-110 transition-all" style="background-color:#ef4444" title="红色"></button>
+                  <button type="button" data-color="#06b6d4" class="color-swatch w-7 h-7 rounded-full border-2 border-transparent hover:scale-110 transition-all" style="background-color:#06b6d4" title="青色"></button>
+                  <button type="button" data-color="#64748b" class="color-swatch w-7 h-7 rounded-full border-2 border-transparent hover:scale-110 transition-all" style="background-color:#64748b" title="灰色"></button>
+                </div>
+                <input type="hidden" id="detail-tag-color" value="#6366f1" />
+              </div>
+              <!-- 已有标签下拉 -->
+              <div id="detail-tag-existing" class="hidden">
+                <label class="text-xs text-slate-400 dark:text-slate-500">或选择已有标签：</label>
+                <div id="detail-tag-pool" class="flex flex-wrap gap-1.5 mt-1"></div>
+              </div>
+            </div>
+            <!-- 元信息 -->
+            <div class="text-xs text-slate-400 dark:text-slate-500 space-y-1 pt-2 border-t border-gray-100 dark:border-slate-700">
+              <div id="detail-created"></div>
+              <div id="detail-updated"></div>
+              <div id="detail-tpl-info" class="hidden"></div>
+            </div>
+            </div><!-- /max-w-lg mx-auto -->
+          </div>
+          <!-- 底部操作 -->
+          <div class="px-5 md:px-8 lg:px-10 py-4 border-t border-gray-200 dark:border-slate-700 safe-area-bottom">
+            <div class="flex gap-2">
+              <button id="detail-save" class="flex-1 py-3 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 active:scale-95 transition-colors min-h-[48px]">保存修改</button>
+              <button id="detail-delete" class="px-4 py-3 rounded-lg border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 font-medium hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors min-h-[48px]">删除</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 设置模态框 -->
+      <div id="settings-modal" class="fixed inset-0 bg-black/40 hidden items-center justify-center p-4 z-50" role="dialog" aria-modal="true">
+        <div class="w-full max-w-md rounded-xl border border-gray-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-6 shadow-xl">
+          <h3 class="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-4">设置</h3>
+          <div class="space-y-4">
+            <!-- 连接状态 -->
+            <div class="flex items-center gap-2 px-3 py-2 rounded-lg bg-slate-50 dark:bg-slate-700/50">
+              <span id="settings-status-dot" class="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
+              <span id="settings-status-text" class="text-sm text-slate-600 dark:text-slate-300">未连接</span>
+            </div>
+            <!-- API 地址 -->
+            <div class="space-y-1">
+              <label for="settings-api-url" class="text-sm font-medium text-slate-700 dark:text-slate-300">API 服务器地址</label>
+              <input id="settings-api-url" type="url" placeholder="http://192.168.1.100:8001" class="w-full px-3 py-2.5 rounded-md border border-gray-200 dark:border-slate-700 bg-white/80 dark:bg-slate-800/80 text-slate-900 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-500 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 text-sm min-h-[44px]" />
+              <p class="text-xs text-slate-400 dark:text-slate-500">输入后端 API 的完整地址，如 http://192.168.1.100:8001</p>
+            </div>
+            <!-- 测试连接 -->
+            <button id="settings-test" class="w-full py-2.5 rounded-md border border-indigo-300 dark:border-indigo-700 text-indigo-600 dark:text-indigo-400 font-medium hover:bg-indigo-50 dark:hover:bg-indigo-900/30 transition-colors text-sm min-h-[44px]">测试连接</button>
+            <div id="settings-test-result" class="hidden text-sm px-3 py-2 rounded-lg"></div>
+          </div>
+          <div class="flex gap-2 mt-6">
+            <button id="settings-cancel" class="flex-1 py-2.5 rounded-lg border border-gray-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">取消</button>
+            <button id="settings-clear" class="py-2.5 px-4 rounded-lg border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 font-medium hover:bg-red-50 dark:hover:bg-red-900/30 transition-colors">清除</button>
+            <button id="settings-save" class="flex-1 py-2.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-700 transition-colors">保存</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 撤销 Toast -->
+      <div id="undo-toast" class="fixed bottom-20 md:bottom-6 left-1/2 -translate-x-1/2 bg-slate-800 dark:bg-slate-200 text-white dark:text-slate-900 px-5 py-2.5 rounded-full shadow-lg flex items-center gap-3 transition-all duration-300 transform translate-y-24 opacity-0" style="z-index:60">
+        <span class="text-sm font-medium">状态已更新</span>
+        <button id="undo-btn" class="text-sm font-bold text-indigo-400 dark:text-indigo-600 hover:text-indigo-300 dark:hover:text-indigo-800 focus:outline-none underline">撤销</button>
+      </div>
+
+    <!-- 移动端底部导航栏 -->
+    <nav id="mobile-navbar" class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-gray-200 dark:border-slate-700 safe-area-bottom">
+      <div class="flex items-center justify-around px-2 py-1">
+        <button id="nav-tpl" class="flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors min-w-[56px]" aria-label="模版">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z" /></svg>
+          <span class="text-[10px]">模版</span>
+        </button>
+        <button id="settings-btn" class="flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors min-w-[56px]" aria-label="设置">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>
+          <span class="text-[10px]">设置</span>
+        </button>
+        <button id="theme-toggle" class="flex flex-col items-center gap-0.5 py-1.5 px-3 rounded-lg text-slate-500 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors min-w-[56px]" aria-label="切换主题">
+          <svg id="theme-icon-mobile" xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" /></svg>
+          <span class="text-[10px]" id="theme-label-mobile">主题</span>
+        </button>
+        <button id="logout-btn" class="hidden flex-col items-center gap-0.5 py-1.5 px-3 rounded-lg text-slate-500 dark:text-slate-400 hover:text-red-600 dark:hover:text-red-400 transition-colors min-w-[56px]" aria-label="登出">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /></svg>
+          <span class="text-[10px]">登出</span>
+        </button>
+      </div>
+    </nav>
+
+    <!-- 卡片模板 -->
+    <template id="card">
+      <div class="swipe-container">
+        <!-- 滑动操作背景 -->
+        <div class="swipe-actions swipe-action-left" style="opacity:0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+        </div>
+        <div class="swipe-actions swipe-action-right" style="opacity:0">
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+        </div>
+        <!-- 卡片主体 -->
+      <div class="swipe-content cursor-pointer rounded-xl border border-gray-200/80 dark:border-slate-700/80 bg-white dark:bg-slate-800 shadow-sm card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 relative overflow-hidden group">
+        <div class="p-4 md:p-3.5">
+          <!-- 标题行：标题 + 优先级标签 -->
+          <div class="flex items-center justify-between gap-2">
+            <div class="card-title font-semibold text-sm text-slate-800 dark:text-slate-100 flex-1 min-w-0 truncate"></div>
+            <span class="card-priority-badge text-[11px] px-2 py-0.5 rounded-full font-medium shrink-0 cursor-pointer relative z-10 transition-colors">普通</span>
+          </div>
+          <!-- 描述 -->
+          <div class="card-desc mt-1.5 text-xs text-slate-500 dark:text-slate-400 line-clamp-2 leading-relaxed"></div>
+          <!-- 模版标记 -->
+          <div class="card-tpl mt-2 hidden">
+            <span class="tpl-badge inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 font-medium">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 5a1 1 0 011-1h14a1 1 0 011 1v2a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM4 13a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H5a1 1 0 01-1-1v-6z" /></svg>
+              <span class="tpl-name"></span>
+            </span>
+          </div>
+          <!-- 底部信息区 -->
+          <div class="card-footer mt-2.5 flex items-center gap-3 flex-wrap">
+            <div class="card-due hidden flex items-center gap-1 text-[11px] font-medium">
+              <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+              <span class="due-text"></span>
+            </div>
+            <div class="card-subtask-bar hidden flex items-center gap-1.5">
+              <div class="flex items-center gap-1">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>
+                <span class="card-sub-text text-[11px] text-slate-500 dark:text-slate-400 font-medium"></span>
+              </div>
+              <div class="w-16 h-1.5 rounded-full bg-gray-100 dark:bg-slate-700 overflow-hidden">
+                <div class="card-sub-fill h-full rounded-full bg-indigo-500 transition-all" style="width:0%"></div>
+              </div>
+            </div>
+          </div>
+          <!-- 标签 -->
+          <div class="card-tags mt-2 hidden flex flex-wrap gap-1"></div>
+        </div>
+        <div class="loading-overlay absolute inset-0 bg-white/50 dark:bg-slate-900/50 hidden items-center justify-center z-20">
+          <svg class="animate-spin h-5 w-5 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+          </svg>
+        </div>
+      </div><!-- /swipe-content -->
+      </div><!-- /swipe-container -->
+    </template>
+
+    <script type="module">
+      import { init } from "./app.js";
+      init();
+    </script>
+  </body>
+</html>
